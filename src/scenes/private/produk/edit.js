@@ -5,6 +5,8 @@ import TextField from "@material-ui/core/TextField";
 import Button from "@material-ui/core/Button";
 import Grid from "@material-ui/core/Grid";
 import Typography from "@material-ui/core/Typography";
+import UploadIcon from "@material-ui/icons/CloudUpload";
+import SaveIcon from "@material-ui/icons/Save";
 
 // firebase hook
 import { useFirebase } from "../../../components/FirebaseProvider";
@@ -19,6 +21,9 @@ import {useSnackbar} from 'notistack'
 
 //import styles
 import useStyles from "./style/edit";
+
+//import react router dom
+import { Prompt } from "react-router-dom";
 
 export default function EditProduk({match}) {
 
@@ -52,6 +57,7 @@ export default function EditProduk({match}) {
     });
 
     const [isSubmitting, setSubmitting] = useState(false);
+    const [isSomethingChange, setSomethingChange] = useState(false);
 
     useEffect(()=>{
         if(snapshot){
@@ -69,6 +75,8 @@ export default function EditProduk({match}) {
             ...error,
             [e.target.name] : ''
         })
+
+        setSomethingChange(true);
     }
 
     const validate = ()=>{
@@ -111,6 +119,7 @@ export default function EditProduk({match}) {
 
                 await produkDoc.set(form,{merge:true});
                 enqueueSnackbar("Data Produk berhasil disimpan", {variant : 'success'});
+                setSomethingChange(false);
 
             } catch(e) {
                 enqueueSnackbar(e.message, {variant : 'error'});
@@ -180,6 +189,8 @@ export default function EditProduk({match}) {
                         foto: fotoUrl
                     }))
 
+                    setSomethingChange(true);
+
                 } catch(e){
 
                     setError(error => ({
@@ -189,7 +200,7 @@ export default function EditProduk({match}) {
 
                 }
 
-                setSubmitting(false);
+               setSubmitting(false);
             }
 
             reader.readAsDataURL(file);
@@ -294,11 +305,13 @@ export default function EditProduk({match}) {
                         />
                           <label htmlFor="upload-foto-produk">
                             <Button
+                                disabled={isSubmitting}
                                 component="span"
                                 variant="outlined"
                             
                             >
                                 Upload Foto Produk
+                                <UploadIcon  className={classes.iconRight}/>
                             </Button>
 
                             {
@@ -314,16 +327,23 @@ export default function EditProduk({match}) {
                   
                 </Grid>
                 <Grid item xs={12}>
-                    <Button
-                        disabled={isSubmitting}
-                        form="produk-form"
-                        type="submit"
-                        color="primary" 
-                        variant="contained">
-                        Simpan
-                    </Button>
+                    <div className={classes.actionButton}>
+                        <Button
+                            disabled={isSubmitting }
+                            form="produk-form"
+                            type="submit"
+                            color="primary" 
+                            variant="contained">
+                            <SaveIcon className={classes.iconLeft}/>
+                            Simpan
+                        </Button>
+                    </div>
                 </Grid>
             </Grid>
+            <Prompt 
+                when={isSomethingChange}
+                message="Terdapat perubahan yang belum disimpan, Apakah anda yakin meninggalkan halaman ?"
+            />
         </div>
     )
 }

@@ -13,6 +13,15 @@ const useStyles= makeStyles(theme=>({
         previewFoto : {
             width :"100%",
             height : "auto"
+        },
+        iconRight : {
+            marginLeft : theme.spacing(1)
+        },
+        iconLeft : {
+            marginRight : theme.spacing(1)
+        },
+        actionButton : {
+            paddingTop : theme.spacing(2)
         }
 
 }))
