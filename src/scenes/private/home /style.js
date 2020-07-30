@@ -7,6 +7,10 @@ const useStyles= makeStyles(theme=>({
         backgroundColor : theme.palette.background.paper,
         maxHeight:500,
         overflow: 'auto'
+    },
+    inputJumlah : {
+        width:35
+
     }
 
 }))

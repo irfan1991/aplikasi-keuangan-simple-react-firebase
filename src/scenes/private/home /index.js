@@ -10,7 +10,12 @@ import Typography from "@material-ui/core/Typography";
 import Grid from "@material-ui/core/Grid";
 import Avatar from "@material-ui/core/Avatar";
 import ImageIcon from "@material-ui/icons/Image";
-import TextField from "@material-ui/core/TextField"
+import TextField from "@material-ui/core/TextField";
+import Table from "@material-ui/core/Table";
+import TableRow from "@material-ui/core/TableRow";
+import TableHead from "@material-ui/core/TableHead";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
 
 //firebase hook
 import { useFirebase } from '../../../components/FirebaseProvider'
@@ -22,11 +27,25 @@ import AppLoading from "../../../components/AppLoading";
 //import style
 import useStyles from "./style";
 
+//import notifikasi
+import {useSnackbar} from "notistack";
+
+
+//import helper
+import { currency } from "../../../helpers/formatter";
+
 export default function Home() {
 
     const {auth , firestore, user} = useFirebase();
     const produkCol = firestore.collection(`toko/${user.uid}/produk`);
     const [snapshotProduk , loadingProduk] = useCollection(produkCol);
+    const {enqueueSnackbar} = useSnackbar();
+    const [transaksi, setTransaksi] = useState({
+        items :{
+
+        },
+        total : 0
+    })
     const [produkItems , setProdukItems] = useState([]);
     const [filterProduk, setFilterProduk] = useState('');
     const classes = useStyles();
@@ -44,6 +63,80 @@ export default function Home() {
         }
     }, [snapshotProduk, filterProduk]);
 
+
+    const addItem = produkDoc => e =>{
+
+        let newItem = {...transaksi.items[produkDoc.id]};
+
+        const produkData = produkDoc.data();
+        if(newItem.jumlah){
+            newItem.jumlah = newItem.jumlah + 1;
+            newItem.subtotal = produkData.harga * newItem.jumlah;
+        
+
+        }else{
+            newItem.jumlah = 1;
+            newItem.harga = produkData.harga;
+            newItem.subtotal = produkData.harga;
+            newItem.nama = produkData.nama;
+        }
+
+        const newItems = {
+            ...transaksi.items,
+            [produkDoc.id] : newItem
+
+        };
+
+        if(newItem.jumlah > produkData.stock){
+            enqueueSnackbar(`Jumlah melebihi stok produk` ,{variant : 'error'});
+        } else {
+
+            setTransaksi(({
+                ...transaksi,
+                items : newItems,
+                total :Object.keys(newItems).reduce(
+                    (total,k) => {
+                        const item = newItems[k];
+                        return total + parseInt(item.subtotal);
+                    }, 0
+                )
+            }))
+        }
+    }
+
+
+    const handleChangeJumlah = k => e =>{
+        let newItem = {...transaksi.items[k]};
+
+        newItem.jumlah = parseInt(e.target.value);
+        newItem.subtotal = newItem.harga * newItem.jumlah;
+
+        const newItems = {
+            ...transaksi.items,
+            [k] : newItem
+
+        };
+
+        const produkDoc = produkItems.find(item=>item.id === k);
+        const produkData = produkDoc.data();
+
+        if(newItem.jumlah > produkData.stock){
+            enqueueSnackbar(`Jumlah melebihi stok produk` ,{variant : 'error'});
+        } else {
+
+            setTransaksi(({
+                ...transaksi,
+                items : newItems,
+                total :Object.keys(newItems).reduce(
+                    (total,k) => {
+                        const item = newItems[k];
+                        return total + parseInt(item.subtotal);
+                    }, 0
+                )
+            }))
+        }
+    }
+
     if(loadingProduk){
         return <AppLoading />
     }
@@ -54,8 +147,53 @@ export default function Home() {
                Buat Transaksi Baru
            </Typography>
 
-           <Grid>
-               <Grid item xs={12}>
+           <Grid container spacing={5}>
+               <Grid item xs={12} md={8}>
+                <Table>
+                    <TableHead>
+                        <TableCell>Item</TableCell>
+                        <TableCell>Jumlah</TableCell>
+                        <TableCell>Harga</TableCell>
+                        <TableCell>Subtotal</TableCell>
+                    </TableHead>
+                    <TableBody>
+                        {
+                            Object.keys(transaksi.items).map(k =>{
+                                const item = transaksi.items[k];
+                                console.log(item);
+                                return (
+                                    <TableRow key={k}>
+                                        <TableCell>{item.nama}</TableCell>
+                                        <TableCell>
+                                            <TextField 
+                                            className={classes.inputJumlah}
+                                            onChange={handleChangeJumlah(k)}
+                                            value={item.jumlah} type="number"/>
+                                        </TableCell>
+                                        <TableCell>{currency(item.harga)}</TableCell>
+                                        <TableCell>{currency(item.subtotal)}</TableCell>
+                                    </TableRow>
+                                )
+                            })
+                        }
+
+                        <TableRow>
+                            <TableCell colSpan={3}>
+                                <Typography
+                                variant="subtitle1">
+                                    Total
+                                </Typography> 
+                            </TableCell>
+                            <TableCell>
+                                <Typography variant="h6">
+                                {currency(transaksi.total)}
+                                </Typography>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+               </Grid>
+               <Grid item xs={12} md={4}>
                    <List
                    className={classes.produkList}
                     component="nav"
@@ -79,6 +217,7 @@ export default function Home() {
                                     key={produkDoc.id} 
                                     button
                                     disabled={produkData.stock == 0}
+                                    onClick={addItem(produkDoc)}
                                 >
                                     {
                                         produkData.foto?
