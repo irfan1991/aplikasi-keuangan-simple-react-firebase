@@ -11,6 +11,9 @@ const useStyles= makeStyles(theme=>({
     inputJumlah : {
         width:35
 
+    },
+    iconLeft : {
+        marginRight : theme.spacing(1)
     }
 
 }))

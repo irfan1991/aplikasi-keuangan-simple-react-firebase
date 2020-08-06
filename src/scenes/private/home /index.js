@@ -16,6 +16,7 @@ import TableRow from "@material-ui/core/TableRow";
 import TableHead from "@material-ui/core/TableHead";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
+import SaveIcon from "@material-ui/icons/Save";
 
 //firebase hook
 import { useFirebase } from '../../../components/FirebaseProvider'
@@ -34,21 +35,48 @@ import {useSnackbar} from "notistack";
 //import helper
 import { currency } from "../../../helpers/formatter";
 
+// import date format
+import format from "date-fns/format";
+import { parse } from 'date-fns';
 export default function Home() {
 
     const {auth , firestore, user} = useFirebase();
     const produkCol = firestore.collection(`toko/${user.uid}/produk`);
+    const transaksiCol = firestore.collection(`toko/${user.uid}/transaksi`);
+    const todayDateString = format(new Date(),'yyyy-MM-dd');
     const [snapshotProduk , loadingProduk] = useCollection(produkCol);
+    const [snapshotTransaksi, loadingTransaksi] = useCollection(transaksiCol.where('tanggal','==',todayDateString));
     const {enqueueSnackbar} = useSnackbar();
-    const [transaksi, setTransaksi] = useState({
+    const initialTransaksi = {
+        no :'',
         items :{
 
         },
-        total : 0
-    })
+        total : 0,
+        tanggal : todayDateString
+    }
+    const [transaksi, setTransaksi] = useState(initialTransaksi);
     const [produkItems , setProdukItems] = useState([]);
     const [filterProduk, setFilterProduk] = useState('');
     const classes = useStyles();
+    const [isSubmitting,setSubmitting] = useState(false);
+
+    useEffect(() => {
+
+        if(snapshotTransaksi){
+            setTransaksi(transaksi =>({
+                ...transaksi,
+                no : `${transaksi.tanggal}/${snapshotTransaksi.docs.length + 1}`
+            }))
+        } else {
+
+            setTransaksi(transaksi =>({
+                ...transaksi,
+                no : `${transaksi.tanggal}/1`
+            }))
+        }
+
+    },[snapshotTransaksi]);
 
     useEffect(()=>{
 
@@ -137,16 +165,94 @@ export default function Home() {
         }
     }
 
-    if(loadingProduk){
+    const simpanTransaksi = async (e) =>{
+            if(Object.keys(transaksi.items).length <= 0){
+                enqueueSnackbar("Tidak ada transaksi yang disimpan", {variant : 'error'});
+                return false;
+            }
+
+            setSubmitting(true);
+            try {
+            await transaksiCol.add({
+                ...transaksi,
+                timestamp:Date.now()
+            })
+
+            // update stock produk denngan menggunakan transactions
+
+            await firestore.runTransaction(transaction=>{
+                const produkIDs = Object.keys(transaksi.items);
+
+                return Promise.all(produkIDs.map(produkId => {
+
+                    const produkRef = firestore.doc(`toko/${user.uid}/produk/${produkId}`);
+
+                    return transaction.get(produkRef).then((produkDoc) => {
+
+                        if(!produkDoc.exists){
+                            throw Error('Produk tidak ada');
+                        }
+
+                        let newStok = parseInt(produkDoc.data().stock) - parseInt(transaksi.items[produkId].jumlah);
+
+                        if(newStok < 0){
+                            newStok = 0;
+                        }
+
+                        transaction.update(produkRef, {stock : newStok});
+
+                    })
+                }));
+            })
+
+            enqueueSnackbar('Transaksi berhasil disimpan', {variant : 'success'});
+            setTransaksi( transaksi =>({
+                    ...initialTransaksi,
+                    no : transaksi.no
+            }));
+
+            } catch(e){
+                enqueueSnackbar(e.message , {variant:'error'});
+            }
+            setSubmitting(false);
+    }
+
+    if(loadingProduk || loadingTransaksi){
         return <AppLoading />
     }
   
     return (
         <div>
-           <Typography variant="h5" component="h1">
+           <Typography variant="h5" component="h1" paragraph>
                Buat Transaksi Baru
            </Typography>
+           <Grid container spacing={3}>
 
+           <Grid item xs>
+                <TextField 
+                    label="No Transaksi"
+                    color ="primary"
+                    value={transaksi.no}
+                    InputProps={{
+                        readOnly : true
+                    }}
+                />
+            </Grid>
+
+            <Grid item>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={simpanTransaksi}
+                    disabled={isSubmitting}
+                >
+                <SaveIcon className={classes.iconLeft} />    
+                Simpan Transaksi</Button>
+            </Grid>
+
+
+           </Grid>
+           
            <Grid container spacing={5}>
                <Grid item xs={12} md={8}>
                 <Table>
@@ -165,7 +271,8 @@ export default function Home() {
                                     <TableRow key={k}>
                                         <TableCell>{item.nama}</TableCell>
                                         <TableCell>
-                                            <TextField 
+                                            <TextField
+                                             disabled={isSubmitting} 
                                             className={classes.inputJumlah}
                                             onChange={handleChangeJumlah(k)}
                                             value={item.jumlah} type="number"/>
@@ -216,7 +323,7 @@ export default function Home() {
                                 return <ListItem
                                     key={produkDoc.id} 
                                     button
-                                    disabled={produkData.stock == 0}
+                                    disabled={produkData.stock == 0 || isSubmitting}
                                     onClick={addItem(produkDoc)}
                                 >
                                     {
