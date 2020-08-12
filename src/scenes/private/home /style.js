@@ -9,7 +9,7 @@ const useStyles= makeStyles(theme=>({
         overflow: 'auto'
     },
     inputJumlah : {
-        width:35
+        width:50
 
     },
     iconLeft : {
