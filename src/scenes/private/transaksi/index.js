@@ -60,10 +60,10 @@ export default function Transaksi() {
         })
     }
     
-    const handleOpenDetails = (e) => {
+    const handleOpenDetails = transaksiDoc =>  (e) => {
         setDetails({
             open : true,
-            transaksi : transaksiDoc.detail()
+            transaksi : transaksiDoc.data()
         })
     }
     if(loading) {
